@@ -1811,8 +1811,17 @@ export class FigmaClient {
           })();` : ''}`;
         } else if (item._type === 'rect') {
           // Rectangle element
-          const rWidth = item.w || item.width || 100;
-          const rHeight = item.h || item.height || 100;
+          // w/h accept a number or "fill". "fill" must never reach resize() as
+          // a raw string (that produced "'frame' is not defined" at runtime):
+          // seed the axis at 1px, then FILL it once the rect is in its parent.
+          const rParentNone = parentFlex === 'none' || parentFlex === 'stack' || parentFlex === 'free';
+          const rRawW = item.w !== undefined ? item.w : item.width;
+          const rRawH = item.h !== undefined ? item.h : item.height;
+          const rFillW = rRawW === 'fill';
+          const rFillH = rRawH === 'fill';
+          const rNum = (v) => (v !== undefined && v !== 'fill' && !isNaN(Number(v)) ? Number(v) : null);
+          const rWidth = rFillW ? 1 : (rNum(rRawW) ?? 100);
+          const rHeight = rFillH ? 1 : (rNum(rRawH) ?? 100);
           const rBg = item.bg || item.fill || '#e4e4e7';
           const rRounded = item.rounded || item.radius || 0;
           const rName = item.name || 'Rectangle';
@@ -1825,7 +1834,9 @@ export class FigmaClient {
         el${idx}.cornerRadius = ${rRounded};
         ${rectFillCode.code}
         ${parentVar}.appendChild(el${idx});
-        ${this.genCommonNodeProps(item, `el${idx}`, parentFlex === 'none' || parentFlex === 'stack' || parentFlex === 'free')}`;
+        ${rFillW && !rParentNone ? `try { el${idx}.layoutSizingHorizontal = 'FILL'; } catch (e) {}` : ''}
+        ${rFillH && !rParentNone ? `try { el${idx}.layoutSizingVertical = 'FILL'; } catch (e) {}` : ''}
+        ${this.genCommonNodeProps(item, `el${idx}`, rParentNone)}`;
         } else if (item._type === 'ellipse') {
           // Ellipse / Circle. arc (sweep degrees) + arcStart (start degrees,
           // 0 = 3 o'clock, clockwise) + innerRadius (0–1) make rings, spinners,
